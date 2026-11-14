@@ -78,6 +78,19 @@ export function addDays(date: Date, amount: number): Date {
   return result;
 }
 
+/**
+ * Add (or subtract) calendar months, returning a new Date at local midnight.
+ *
+ * The day of the month is clamped to the last valid day of the target month,
+ * so 31 January plus one month is 28 (or 29) February.
+ */
+export function addMonths(date: Date, amount: number): Date {
+  const target = new Date(date.getFullYear(), date.getMonth() + amount, 1);
+  const lastDay = new Date(target.getFullYear(), target.getMonth() + 1, 0).getDate();
+  const day = Math.min(date.getDate(), lastDay);
+  return new Date(target.getFullYear(), target.getMonth(), day);
+}
+
 export function startOfWeek(date: Date, weekStartsOn: WeekStart): Date {
   const day = date.getDay(); // 0 = Sunday
   const offset = weekStartsOn === 'monday' ? (day === 0 ? 6 : day - 1) : day;

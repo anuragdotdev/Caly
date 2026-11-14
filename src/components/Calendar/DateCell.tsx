@@ -27,7 +27,7 @@ export const DateCell = memo(function DateCell({
   const day = date.getDate();
 
   const base =
-    'relative flex h-[21px] w-[21px] items-center justify-center rounded-[3px] text-[11px] leading-none transition-colors hover:bg-surface-2';
+    'relative flex h-6 w-6 items-center justify-center rounded-[3px] text-[12px] leading-none transition-colors hover:bg-surface-2';
 
   const struck = 'line-through decoration-text-3/70';
 

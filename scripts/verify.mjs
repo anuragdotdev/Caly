@@ -4,9 +4,15 @@
  */
 import { spawn } from 'node:child_process';
 import { setTimeout as sleep } from 'node:timers/promises';
+import { rmSync } from 'node:fs';
 
 const URL = process.argv[2] ?? 'http://localhost:4173';
 const PORT = 9333;
+const PROFILE = 'C:/Users/hp/AppData/Local/Temp/opencode/cdp-profile';
+
+// A stale profile can serve a cached index.html pointing at a deleted bundle,
+// so start from a clean profile every run.
+rmSync(PROFILE, { recursive: true, force: true });
 
 const chrome = spawn(
   'C:/Program Files/Google/Chrome/Application/chrome.exe',
@@ -17,7 +23,7 @@ const chrome = spawn(
     '--no-first-run',
     '--no-default-browser-check',
     `--remote-debugging-port=${PORT}`,
-    '--user-data-dir=C:/Users/hp/AppData/Local/Temp/opencode/cdp-profile',
+    `--user-data-dir=${PROFILE}`,
     'about:blank',
   ],
   { stdio: 'ignore' },
@@ -116,19 +122,76 @@ const HELPERS = `
 
 const report = {};
 
-await evaluate(HELPERS);
+try {
+  await evaluate(HELPERS);
 
-report.header = await evaluate(`(() => ({
+  report.header = await evaluate(`(() => ({
   brand: document.querySelector('h1')?.textContent,
   countdown: document.querySelector('[aria-live="polite"]')?.textContent,
 }))()`);
 
-report.calendar = await evaluate(`(() => ({
-  months: document.querySelectorAll('section[aria-label$="2026"]').length,
-  dayCells: document.querySelectorAll('button[data-date]').length,
-}))()`);
+  report.calendar = await evaluate(`(() => {
+  const grids = [...document.querySelectorAll('section[aria-label]')].filter(s =>
+    /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || '')
+  );
+  return {
+    monthGrids: grids.length,
+    monthLabels: grids.map(g => g.getAttribute('aria-label')),
+    dayCells: document.querySelectorAll('button[data-date]').length,
+    yearHeading: document.querySelector('h2')?.textContent ?? null,
+  };
+})()`);
+
+// --- month / year navigation ---
+report.navigation = await evaluate(`(async () => {
+  const monthsNow = () => [...document.querySelectorAll('section[aria-label$="2026"], section[aria-label$="2027"]')]
+    .filter(s => /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || ''))
+    .map(s => s.getAttribute('aria-label'));
+
+  const click = async (label) => {
+    document.querySelector('button[aria-label="' + label + '"]').click();
+    await window.__dl.wait(250);
+  };
+
+  const start = monthsNow();
+  await click('Next month');
+  const afterNextMonth = monthsNow();
+  await click('Previous month');
+  await click('Previous month');
+  const afterPrevMonth = monthsNow();
+  await click('Next year');
+  const afterNextYear = monthsNow();
+  await click('Previous year');
+  const afterPrevYear = monthsNow();
+
+  // Today button
+  const todayBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Today');
+  todayBtn.click();
+  await window.__dl.wait(300);
+  const afterToday = monthsNow();
+  const todayCell = document.querySelector('button[aria-current="date"]');
+
+  return {
+    start,
+    afterNextMonth,
+    afterPrevMonth,
+    afterNextYear,
+    afterPrevYear,
+    afterToday,
+    todaySelected: todayCell?.dataset?.date ?? null,
+  };
+})()`);
 
 report.dateStates = await evaluate(`(() => {
+  const todayEl = document.querySelector('button[aria-current="date"]');
+  const today = todayEl?.dataset.date;
+  if (!today) return { error: 'no today cell' };
+
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+  const [y, m, d] = today.split('-').map(Number);
+  const shift = (n) => fmt(new Date(y, m - 1, d + n));
+
   const read = (date) => {
     const el = document.querySelector('button[data-date="' + date + '"]');
     if (!el) return null;
@@ -140,16 +203,17 @@ report.dateStates = await evaluate(`(() => {
       decoration: cs.textDecorationLine,
     };
   };
-  const todayEl = document.querySelector('button[aria-current="date"]');
+
   return {
-    today: todayEl ? {
-      date: todayEl.dataset.date,
+    today: {
+      date: today,
       color: getComputedStyle(todayEl).color,
       bg: getComputedStyle(todayEl).backgroundColor,
-    } : null,
-    past: read('2026-01-05'),
-    future: read('2026-12-25'),
-    adjacent: read('2025-12-29'),
+    },
+    past: read(shift(-1)),
+    tomorrow: read(shift(1)),
+    // A day belonging to the neighbouring month, shown dimmed.
+    adjacent: read(fmt(new Date(y, m, 1))),
   };
 })()`);
 
@@ -241,7 +305,7 @@ report.createEvent = await evaluate(`(async () => {
   const cell = document.querySelector('button[data-date="2026-12-04"]');
   const markerBackground = getComputedStyle(cell).backgroundColor;
   const hasMarker = markerBackground !== 'rgba(0, 0, 0, 0)';
-  const upcoming = document.querySelector('aside')?.textContent ?? '';
+  const upcoming = document.querySelector('#upcoming-events')?.textContent ?? '';
   return {
     ok: hasMarker && upcoming.includes('Headless Event'),
     hasMarker,
@@ -277,6 +341,13 @@ report.secondEventSameDate = await evaluate(`(async () => {
 
 // --- past event is excluded from Upcoming but visible in the calendar ---
 report.pastEventHandling = await evaluate(`(async () => {
+  // Pick a date that is in the past but still inside the visible window.
+  const todayStr = document.querySelector('button[aria-current="date"]')?.dataset.date;
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const pad = (n) => String(n).padStart(2, '0');
+  const past = new Date(ty, tm - 1, td - 1);
+  const pastDate = past.getFullYear() + '-' + pad(past.getMonth() + 1) + '-' + pad(past.getDate());
+
   document.querySelector('button[data-date="2026-12-04"]').click();
   await window.__dl.wait(200);
   const popover = document.querySelector('[role="dialog"][aria-label^="Events on"]');
@@ -286,51 +357,59 @@ report.pastEventHandling = await evaluate(`(async () => {
   editBtn.click();
   await window.__dl.wait(300);
   const modal = document.querySelector('[role="dialog"][aria-label="Edit Event"]');
-  window.__dl.setInput(modal.querySelector('#event-date'), '2026-01-15');
+  window.__dl.setInput(modal.querySelector('#event-date'), pastDate);
   await window.__dl.wait(100);
   window.__dl.byText(modal, 'Save').click();
   await window.__dl.wait(500);
-  const upcoming = document.querySelector('aside')?.textContent ?? '';
-  const pastCell = document.querySelector('button[data-date="2026-01-15"]');
+  const upcoming = document.querySelector('#upcoming-events')?.textContent ?? '';
+  const pastCell = document.querySelector('button[data-date="' + pastDate + '"]');
   return {
     editedName,
     removedFromUpcoming: !upcoming.includes(editedName),
-    stillHasEventCell: getComputedStyle(pastCell).backgroundColor !== 'rgba(0, 0, 0, 0)',
-    pastCellStrikethrough: getComputedStyle(pastCell).textDecorationLine,
+    stillHasEventCell: pastCell
+      ? getComputedStyle(pastCell).backgroundColor !== 'rgba(0, 0, 0, 0)'
+      : false,
+    pastCellStrikethrough: pastCell ? getComputedStyle(pastCell).textDecorationLine : null,
     remainingUpcoming: (upcoming.match(/DEC/g) || []).length,
   };
 })()`);
 
 // --- todo: create, complete, filter ---
 report.todos = await evaluate(`(async () => {
-  const aside = document.querySelector('aside');
-  window.__dl.byText(aside, 'Add task').click();
+  const todo = document.querySelector('#todo-list');
+  window.__dl.byText(todo, 'Add task').click();
   await window.__dl.wait(300);
   const modal = document.querySelector('[role="dialog"][aria-label="New Task"]');
   window.__dl.setInput(modal.querySelector('#task-title'), 'Headless Task');
-  window.__dl.setInput(modal.querySelector('#task-due'), '2026-01-05');
+  // A due date in the past, relative to today, so the task reads as overdue.
+  const todayStr = document.querySelector('button[aria-current="date"]')?.dataset.date;
+  const [ty, tm, td] = todayStr.split('-').map(Number);
+  const pad = (n) => String(n).padStart(2, '0');
+  const past = new Date(ty, tm - 1, td - 1);
+  const dueDate = past.getFullYear() + '-' + pad(past.getMonth() + 1) + '-' + pad(past.getDate());
+  window.__dl.setInput(modal.querySelector('#task-due'), dueDate);
   await window.__dl.wait(100);
   window.__dl.byText(modal, 'Add Task').click();
   await window.__dl.wait(500);
 
-  const asideAfter = document.querySelector('aside');
-  const inToday = asideAfter.textContent.includes('Headless Task');
-  const overdueLabel = /overdue/i.test(asideAfter.textContent);
+  const todoAfter = document.querySelector('#todo-list');
+  const inToday = todoAfter.textContent.includes('Headless Task');
+  const overdueLabel = /overdue/i.test(todoAfter.textContent);
 
   // switch to Pending
-  const pendingTab = [...asideAfter.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pending');
+  const pendingTab = [...todoAfter.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pending');
   pendingTab.click();
   await window.__dl.wait(200);
-  const inPending = document.querySelector('aside').textContent.includes('Headless Task');
+  const inPending = document.querySelector('#todo-list').textContent.includes('Headless Task');
 
   // complete it
-  const toggle = document.querySelector('aside button[aria-label^="Mark"]');
+  const toggle = document.querySelector('#todo-list button[aria-label^="Mark"]');
   toggle.click();
   await window.__dl.wait(400);
-  const completedTab = [...document.querySelectorAll('aside button')].find(b => b.textContent.trim() === 'Completed');
+  const completedTab = [...document.querySelectorAll('#todo-list button')].find(b => b.textContent.trim() === 'Completed');
   completedTab.click();
   await window.__dl.wait(300);
-  const inCompleted = document.querySelector('aside').textContent.includes('Headless Task');
+  const inCompleted = document.querySelector('#todo-list').textContent.includes('Headless Task');
 
   return { inToday, overdueLabel, inPending, inCompleted };
 })()`);
@@ -351,7 +430,29 @@ report.keyboard = await evaluate(`(async () => {
   await window.__dl.wait(250);
   const afterDown = document.activeElement?.dataset?.date ?? null;
   const popoverOpen = !!document.querySelector('[role="dialog"][aria-label^="Events on"]');
-  return { startDate, afterRight, afterDown, popoverOpenAfterArrows: popoverOpen };
+
+  // Walking past the last visible month must slide the window.
+  const monthsNow = () => [...document.querySelectorAll('section[aria-label]')]
+    .filter(s => /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || ''))
+    .map(s => s.getAttribute('aria-label'));
+  const windowBefore = monthsNow();
+  const lastCell = [...document.querySelectorAll('button[data-date]')].pop();
+  lastCell.focus();
+  for (let i = 0; i < 8; i += 1) {
+    document.activeElement.dispatchEvent(new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true }));
+    await window.__dl.wait(120);
+  }
+  const windowAfter = monthsNow();
+
+  return {
+    startDate,
+    afterRight,
+    afterDown,
+    popoverOpenAfterArrows: popoverOpen,
+    windowBefore,
+    windowAfter,
+    windowSlid: windowBefore.join() !== windowAfter.join(),
+  };
 })()`);
 
 // --- settings: change week start, verify the calendar re-renders ---
@@ -378,22 +479,18 @@ report.settings = await evaluate(`(async () => {
 
 // --- year navigation ---
 report.yearNav = await evaluate(`(async () => {
+  const monthsNow = () => [...document.querySelectorAll('section[aria-label]')]
+    .filter(s => /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || ''))
+    .map(s => s.getAttribute('aria-label'));
+
   const yearBefore = document.querySelector('h2')?.textContent;
-  document.querySelector('button[aria-label="Next year"]').click();
-  await window.__dl.wait(300);
-  const yearAfter = document.querySelector('h2')?.textContent;
-  const monthsAfter = document.querySelectorAll('section[aria-label$="2027"]').length;
-  document.querySelector('button[aria-label="Previous year"]').click();
-  await window.__dl.wait(300);
-  const yearBack = document.querySelector('h2')?.textContent;
-  document.querySelector('button[aria-label="Previous year"]').click();
-  await window.__dl.wait(300);
-  const yearPrev = document.querySelector('h2')?.textContent;
+  const monthsBefore = monthsNow();
   const todayBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Today');
   todayBtn.click();
   await window.__dl.wait(300);
   const yearToday = document.querySelector('h2')?.textContent;
-  return { yearBefore, yearAfter, monthsAfter, yearBack, yearPrev, yearToday };
+  const monthsToday = monthsNow();
+  return { yearBefore, monthsBefore, yearToday, monthsToday };
 })()`);
 
 // --- persistence: reload and confirm data survives ---
@@ -402,10 +499,10 @@ report.yearNav = await evaluate(`(async () => {
 // expected to be lost on reload. Real persistence is covered by
 // scripts/verify-extension.mjs, which runs inside the real extension.
 const beforeReload = await evaluate(`(() => {
-  const aside = document.querySelector('aside')?.textContent ?? '';
+  const bottom = document.querySelector('main')?.textContent ?? '';
   return {
-    hasEvent: aside.includes('Second Event'),
-    hasTask: aside.includes('Headless Task'),
+    hasEvent: bottom.includes('Second Event'),
+    hasTask: bottom.includes('Headless Task'),
     storageAvailable: typeof chrome !== 'undefined' && !!chrome.storage,
   };
 })()`);
@@ -415,14 +512,17 @@ await sleep(2500);
 await evaluate(HELPERS);
 
 const afterReload = await evaluate(`(() => {
-  const aside = document.querySelector('aside')?.textContent ?? '';
+  const bottom = document.querySelector('main')?.textContent ?? '';
   return {
-    hasEvent: aside.includes('Second Event'),
-    hasTask: aside.includes('Headless Task'),
+    hasEvent: bottom.includes('Second Event'),
+    hasTask: bottom.includes('Headless Task'),
   };
 })()`);
 
 report.persistence = { beforeReload, afterReload };
+} catch (error) {
+  report.error = String(error?.message ?? error);
+}
 
 report.consoleErrors = consoleErrors;
 

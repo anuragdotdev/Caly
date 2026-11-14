@@ -1,20 +1,24 @@
 # DEADLINE.
 
-A minimal personal planning dashboard for the Chrome new tab: a yearly calendar, an
-upcoming-events sidebar and a persistent todo list, with a countdown in the header.
+A minimal personal planning dashboard for the Chrome new tab: a monthly calendar, an
+upcoming-events list and a persistent todo list, with a countdown in the header.
 
 Built with React 19, TypeScript, Vite, Tailwind CSS v4 and Lucide icons. Manifest V3,
 `chrome.storage.local` only — no backend, no accounts, works offline.
 
 ## Features
 
-**Header** — `DEADLINE.` wordmark, a live countdown line (`50 DAYS LEFT UNTIL YEAR END`)
+**Header** — the `Caly` wordmark, a live countdown line (`50 DAYS LEFT UNTIL YEAR END`)
 and a settings button. The countdown target defaults to December 31 of the current year
 and rolls forward to the next year end once it passes.
 
-**Yearly calendar** — all 12 months at once in a 3-column grid. Correct month lengths,
-leap years and weekday offsets. Previous/next year navigation and a `Today` action.
-Clicking a date opens a popover with that date's events.
+**Calendar** — three months at a time in a 3-column grid. Correct month lengths, leap
+years and weekday offsets. `‹ ›` slide the window one month at a time, `« »` jump a
+year, and `Today` returns to the current month. Clicking a date opens a popover with
+that date's events.
+
+The window can straddle two years; the heading then reads `2026 – 2027` and the months
+in the other year are labelled `JAN 2027`.
 
 | State | Appearance |
 |---|---|
@@ -44,6 +48,8 @@ and due date. Three views:
 Tasks never disappear automatically. An overdue task stays pending until you complete or
 delete it, and everything persists across browser restarts.
 
+Upcoming events and the todo list sit side by side underneath the calendar.
+
 **Settings** — countdown label and target date, week start (Monday/Sunday), theme
 (dark/light), JSON export, JSON import and a confirmed reset-all.
 
@@ -51,7 +57,7 @@ delete it, and everything persists across browser restarts.
 
 | Key | Action |
 |---|---|
-| Arrow keys | Move between calendar days |
+| Arrow keys | Move between calendar days (slides the window at the edges) |
 | Enter / Space | Open the events popover for the focused day |
 | Escape | Close the popover or dialog |
 | Tab | Move between controls (dialogs trap focus) |

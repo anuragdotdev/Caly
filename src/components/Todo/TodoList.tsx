@@ -44,7 +44,7 @@ export function TodoList({
   const totalCount = allTasks.length;
 
   return (
-    <section aria-labelledby="todo-heading" className="min-w-0">
+    <section id="todo-list" aria-labelledby="todo-heading" className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
         <h2
           id="todo-heading"

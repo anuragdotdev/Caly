@@ -128,7 +128,9 @@ report.loaded = await evaluate(`(() => ({
   hasStorage: !!(chrome.storage && chrome.storage.local),
   title: document.title,
   brand: document.querySelector('h1')?.textContent ?? null,
-  months: document.querySelectorAll('section[aria-label$="2026"]').length,
+  months: [...document.querySelectorAll('section[aria-label]')].filter(s =>
+    /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || '')
+  ).length,
 }))()`);
 
 report.manifest = await evaluate(`(() => {
@@ -168,8 +170,8 @@ report.create = await evaluate(`(async () => {
   window.__dl.byText(modal, 'Add Event').click();
   await window.__dl.wait(700);
 
-  const aside = document.querySelector('aside');
-  window.__dl.byText(aside, 'Add task').click();
+  const todo = document.querySelector('#todo-list');
+  window.__dl.byText(todo, 'Add task').click();
   await window.__dl.wait(400);
   const taskModal = document.querySelector('[role="dialog"][aria-label="New Task"]');
   if (!taskModal) return { error: 'no task modal' };
@@ -197,14 +199,14 @@ await evaluate(HELPERS);
 report.afterReload = await evaluate(`(async () => {
   const stored = await chrome.storage.local.get('deadline:data');
   const d = stored['deadline:data'];
-  const aside = document.querySelector('aside')?.textContent ?? '';
+  const bottom = document.querySelector('main')?.textContent ?? '';
   return {
     eventCount: d?.events?.length ?? -1,
     taskCount: d?.tasks?.length ?? -1,
     eventTitle: d?.events?.[0]?.title ?? null,
     taskTitle: d?.tasks?.[0]?.title ?? null,
-    eventVisibleInUi: aside.includes('Persisted Event'),
-    taskVisibleInUi: aside.includes('Persisted Task'),
+    eventVisibleInUi: bottom.includes('Persisted Event'),
+    taskVisibleInUi: bottom.includes('Persisted Task'),
     legacyKeys: Object.keys(await chrome.storage.local.get(['eventName','targetDate','createdAt']))
       .filter(k => ['eventName','targetDate','createdAt'].includes(k)),
   };

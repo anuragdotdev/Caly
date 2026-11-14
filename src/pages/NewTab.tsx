@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Header } from '../components/Header/Header';
-import { YearlyCalendar } from '../components/Calendar/YearlyCalendar';
+import { YearlyCalendar, type VisibleMonth } from '../components/Calendar/YearlyCalendar';
 import { UpcomingEvents } from '../components/UpcomingEvents/UpcomingEvents';
 import { TodoList, type TodoFilter } from '../components/Todo/TodoList';
 import { EventModal, type EventDraft } from '../components/EventModal/EventModal';
@@ -14,11 +14,27 @@ import type { EventItem, TodoItem } from '../types';
 import { createId } from '../utils/id';
 import { toDateString } from '../utils/dates';
 
+/** How many months are visible at once. */
+const VISIBLE_MONTHS = 3;
+
+/** The month the window opens on: the one containing today. */
+function initialVisibleMonth(today: string): VisibleMonth {
+  return { year: Number(today.slice(0, 4)), month: Number(today.slice(5, 7)) };
+}
+
+/** Shifts a month window by a number of months, rolling over years. */
+function shiftMonth(start: VisibleMonth, delta: number): VisibleMonth {
+  const index = start.year * 12 + (start.month - 1) + delta;
+  return { year: Math.floor(index / 12), month: (index % 12) + 1 };
+}
+
 export function NewTab() {
   const { data, loading, setEvents, setTasks, updateSettings, resetAll, importData } = useAppData();
   const today = useToday();
 
-  const [calendarYear, setCalendarYear] = useState(() => Number(today.slice(0, 4)));
+  const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() =>
+    initialVisibleMonth(today),
+  );
   const [selectedDate, setSelectedDate] = useState<string | null>(null);
   const [popoverAnchor, setPopoverAnchor] = useState<HTMLElement | null>(null);
   const [popoverOpen, setPopoverOpen] = useState(false);
@@ -37,6 +53,12 @@ export function NewTab() {
   useEffect(() => {
     document.documentElement.dataset.theme = data.settings.theme;
   }, [data.settings.theme]);
+
+  const visibleMonths = useMemo(
+    () =>
+      Array.from({ length: VISIBLE_MONTHS }, (_, i) => shiftMonth(visibleMonth, i)),
+    [visibleMonth],
+  );
 
   const eventDates = useMemo(
     () => new Set(data.events.map((event) => event.date)),
@@ -102,18 +124,19 @@ export function NewTab() {
     setSelectedDate(toDateString(date));
   }, []);
 
-  /** The "Today" action returns to the current year and selects today. */
-  const handleToday = useCallback(
-    (year: number) => {
-      setCalendarYear(year);
-      setSelectedDate(today);
-      setPopoverOpen(false);
-    },
-    [today],
-  );
+  /** The "Today" action returns to the current month and selects today. */
+  const handleToday = useCallback(() => {
+    setVisibleMonth(initialVisibleMonth(today));
+    setSelectedDate(today);
+    setPopoverOpen(false);
+  }, [today]);
 
-  const handleYearChange = useCallback((year: number) => {
-    setCalendarYear(year);
+  const handleShiftMonths = useCallback((delta: number) => {
+    setVisibleMonth((current) => shiftMonth(current, delta));
+  }, []);
+
+  const handleShiftYears = useCallback((delta: number) => {
+    setVisibleMonth((current) => shiftMonth(current, delta * 12));
   }, []);
 
   const openNewEvent = useCallback(
@@ -241,20 +264,21 @@ export function NewTab() {
     <div className="min-h-full bg-bg text-text">
       <Header settings={data.settings} today={today} onOpenSettings={() => setSettingsOpen(true)} />
 
-      <main className="mx-auto w-full max-w-[1440px] px-6 pb-16 pt-8 lg:px-10">
-        <div className="grid grid-cols-1 gap-8 lg:grid-cols-[minmax(0,1fr)_320px] lg:gap-10">
+      <main className="mx-auto w-full max-w-[1120px] px-6 pb-16 pt-8 lg:px-10">
+        <div className="flex flex-col gap-10">
           <div className="relative min-w-0">
             {loading ? (
               <p className="py-16 text-center text-[12px] text-text-3">Loading…</p>
             ) : (
               <YearlyCalendar
-                year={calendarYear}
+                months={visibleMonths}
                 weekStartsOn={data.settings.weekStartsOn}
                 today={today}
                 deadline={data.settings.countdownTarget}
                 selectedDate={selectedDate}
                 eventDates={eventDates}
-                onYearChange={handleYearChange}
+                onShiftMonths={handleShiftMonths}
+                onShiftYears={handleShiftYears}
                 onSelectDate={handleSelectDate}
                 onFocusDate={handleFocusDate}
                 onToday={handleToday}
@@ -275,27 +299,25 @@ export function NewTab() {
             ) : null}
           </div>
 
-          <aside className="flex min-w-0 flex-col gap-8">
+          <div className="grid grid-cols-1 gap-x-12 gap-y-10 border-t border-line-soft pt-8 lg:grid-cols-2">
             <UpcomingEvents
               events={upcomingEvents}
               onAdd={() => openNewEvent()}
               onSelect={openEditEvent}
             />
 
-            <div className="border-t border-line-soft pt-6">
-              <TodoList
-                tasks={visibleTasks}
-                allTasks={data.tasks}
-                today={today}
-                filter={todoFilter}
-                onFilterChange={setTodoFilter}
-                onAdd={openNewTask}
-                onToggle={(task) => void handleToggleTask(task)}
-                onEdit={openEditTask}
-                onDelete={(task) => void handleDeleteTask(task)}
-              />
-            </div>
-          </aside>
+            <TodoList
+              tasks={visibleTasks}
+              allTasks={data.tasks}
+              today={today}
+              filter={todoFilter}
+              onFilterChange={setTodoFilter}
+              onAdd={openNewTask}
+              onToggle={(task) => void handleToggleTask(task)}
+              onEdit={openEditTask}
+              onDelete={(task) => void handleDeleteTask(task)}
+            />
+          </div>
         </div>
       </main>
 

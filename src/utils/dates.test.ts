@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import {
   addDays,
+  addMonths,
   daysInMonth,
   daysUntil,
   diffDays,
@@ -128,6 +129,30 @@ describe('addDays', () => {
   it('handles year transitions in both directions', () => {
     expect(toDateString(addDays(new Date(2026, 11, 31), 1))).toBe('2027-01-01');
     expect(toDateString(addDays(new Date(2027, 0, 1), -1))).toBe('2026-12-31');
+  });
+});
+
+describe('addMonths', () => {
+  it('advances and retreats across month boundaries', () => {
+    expect(toDateString(addMonths(new Date(2026, 0, 15), 1))).toBe('2026-02-15');
+    expect(toDateString(addMonths(new Date(2026, 0, 15), -1))).toBe('2025-12-15');
+  });
+
+  it('handles year transitions in both directions', () => {
+    expect(toDateString(addMonths(new Date(2026, 11, 10), 1))).toBe('2027-01-10');
+    expect(toDateString(addMonths(new Date(2027, 0, 10), -1))).toBe('2026-12-10');
+    expect(toDateString(addMonths(new Date(2026, 5, 10), 12))).toBe('2027-06-10');
+  });
+
+  it('clamps the day to the last valid day of the target month', () => {
+    expect(toDateString(addMonths(new Date(2026, 0, 31), 1))).toBe('2026-02-28');
+    expect(toDateString(addMonths(new Date(2024, 0, 31), 1))).toBe('2024-02-29');
+    expect(toDateString(addMonths(new Date(2026, 0, 31), 3))).toBe('2026-04-30');
+  });
+
+  it('round-trips through a month with a longer length', () => {
+    const start = new Date(2026, 0, 15);
+    expect(toDateString(addMonths(addMonths(start, 1), -1))).toBe('2026-01-15');
   });
 });
 

@@ -15,7 +15,7 @@ export function Header({ settings, today, onOpenSettings }: HeaderProps) {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-bg/95 backdrop-blur-sm">
       <div className="mx-auto flex max-w-[1440px] items-center justify-between gap-4 px-6 py-4 lg:px-10">
-        <h1 className="text-[17px] font-bold tracking-[0.02em] text-text">DEADLINE.</h1>
+        <h1 className="text-[17px] font-bold tracking-[0.02em] text-text">Caly</h1>
 
         <div className="flex items-center gap-4">
           <p

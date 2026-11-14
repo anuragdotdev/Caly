@@ -25,6 +25,8 @@ interface MonthGridProps {
   year: number;
   /** 1-based month. */
   month: number;
+  /** The year shown in the calendar heading; a year suffix is added when it differs. */
+  primaryYear: number;
   weekStartsOn: WeekStart;
   today: string;
   /** The countdown target date; days up to and including it are highlighted. */
@@ -38,6 +40,7 @@ interface MonthGridProps {
 export const MonthGrid = memo(function MonthGrid({
   year,
   month,
+  primaryYear,
   weekStartsOn,
   today,
   deadline,
@@ -56,8 +59,13 @@ export const MonthGrid = memo(function MonthGrid({
 
   return (
     <section aria-label={`${monthAbbreviation(month)} ${year}`} className="min-w-0">
-      <h3 className="mb-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-text-2">
+      <h3 className="mb-1.5 text-[12px] font-semibold uppercase tracking-[0.14em] text-text-2">
         {monthAbbreviation(month)}
+        {year !== primaryYear ? (
+          <span className="ml-1.5 text-[10px] font-normal tracking-[0.08em] text-text-3">
+            {year}
+          </span>
+        ) : null}
       </h3>
 
       <div role="grid" aria-label={`${monthAbbreviation(month)} ${year}`}>
@@ -67,7 +75,7 @@ export const MonthGrid = memo(function MonthGrid({
               key={`${label}-${index}`}
               role="columnheader"
               aria-label={label}
-              className="flex h-[13px] items-center justify-center text-[9px] uppercase text-text-3"
+              className="flex h-[14px] items-center justify-center text-[10px] uppercase text-text-3"
             >
               {label}
             </div>

@@ -11,7 +11,7 @@ interface UpcomingEventsProps {
 
 export function UpcomingEvents({ events, onAdd, onSelect }: UpcomingEventsProps) {
   return (
-    <section aria-labelledby="upcoming-heading" className="min-w-0">
+    <section id="upcoming-events" aria-labelledby="upcoming-heading" className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
         <h2
           id="upcoming-heading"
