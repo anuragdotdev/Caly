@@ -232,6 +232,45 @@ report.exportImport = await evaluate(`(async () => {
   };
 })()`);
 
+// The 03:00 reset: a completed task from before the boundary is deleted,
+// one completed after it survives.
+report.dailyReset = await evaluate(`(async () => {
+  const pad = (n) => String(n).padStart(2, '0');
+  const fmt = (d) => d.getFullYear() + '-' + pad(d.getMonth() + 1) + '-' + pad(d.getDate());
+
+  const stored = await chrome.storage.local.get('deadline:data');
+  const d = stored['deadline:data'];
+  const now = new Date();
+  const boundary = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 3);
+  if (now.getTime() < boundary.getTime()) boundary.setDate(boundary.getDate() - 1);
+  const before = new Date(boundary.getTime() - 3600 * 1000).toISOString();
+  const after = new Date(boundary.getTime() + 3600 * 1000).toISOString();
+
+  d.tasks = [
+    { id: 'stale', title: 'Stale', completed: true, completedAt: before, createdAt: before, updatedAt: before },
+    { id: 'fresh', title: 'Fresh', completed: true, completedAt: after, createdAt: after, updatedAt: after },
+    { id: 'open', title: 'Open', completed: false, createdAt: before, updatedAt: before },
+  ];
+  await chrome.storage.local.set({ 'deadline:data': d });
+  return { seeded: true };
+})()`);
+
+// Reload so the mount-time sweep runs against the seeded data.
+await send('Page.reload', {}, sessionId);
+await sleep(3000);
+await evaluate(HELPERS);
+
+report.dailyResetResult = await evaluate(`(async () => {
+  const stored = await chrome.storage.local.get('deadline:data');
+  const tasks = stored['deadline:data'].tasks ?? [];
+  return {
+    remaining: tasks.map(t => t.id).sort(),
+    staleRemoved: !tasks.some(t => t.id === 'stale'),
+    freshKept: tasks.some(t => t.id === 'fresh'),
+    openKept: tasks.some(t => t.id === 'open'),
+  };
+})()`);
+
 // Reset all data.
 report.reset = await evaluate(`(async () => {
   document.querySelector('button[aria-label="Open settings"]').click();

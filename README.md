@@ -39,14 +39,20 @@ the calendar popover. Past events stay reachable through the calendar.
 Event types: Assignment, Examination, Presentation, Project, Personal, Other.
 
 **Todo list** — add, edit, complete, undo and delete tasks, each with an optional priority
-and due date. Three views:
+and due date. Two views:
 
-- **Today** — overdue, due today and undated tasks (the default).
+- **Today** — overdue, due today and undated tasks (the default). Completed tasks stay
+  inline, struck through, until the daily reset.
 - **Pending** — every incomplete task.
-- **Completed** — completed task history.
 
-Tasks never disappear automatically. An overdue task stays pending until you complete or
-delete it, and everything persists across browser restarts.
+Unfinished tasks never disappear on their own: an overdue task stays pending until you
+complete or delete it, and everything persists across browser restarts.
+
+**Daily reset** — completed tasks are deleted at **03:00** local time, so the list starts
+clean each morning. A task is cleared once it was completed before the most recent 03:00
+boundary, so anything you finish between 03:00 and midnight survives until the following
+morning. The reset runs when a tab is opened and again at the boundary for tabs left open
+overnight. Because completed tasks are removed, there is no completed-history view.
 
 Upcoming events and the todo list sit side by side underneath the calendar.
 
@@ -94,9 +100,9 @@ src/
 │  ├─ Celebration/    Celebration (confetti)
 │  ├─ Header/         Header
 │  └─ ui/             Modal, Field
-├─ hooks/             useAppData, useToday
+├─ hooks/             useAppData, useToday, useDailyTaskReset
 ├─ pages/             NewTab
-├─ services/          storage, migrate, countdown, calendar
+├─ services/          storage, migrate, countdown, calendar, tasks
 ├─ types/             EventItem, TodoItem, Settings, AppData
 └─ utils/             dates, id, transfer
 ```

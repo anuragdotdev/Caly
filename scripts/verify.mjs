@@ -396,22 +396,54 @@ report.todos = await evaluate(`(async () => {
   const inToday = todoAfter.textContent.includes('Headless Task');
   const overdueLabel = /overdue/i.test(todoAfter.textContent);
 
-  // switch to Pending
+  // The Completed tab no longer exists.
+  const hasCompletedTab = [...todoAfter.querySelectorAll('button')]
+    .some(b => b.textContent.trim() === 'Completed');
+
+  // Pending shows it while it is unfinished.
   const pendingTab = [...todoAfter.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pending');
   pendingTab.click();
   await window.__dl.wait(200);
-  const inPending = document.querySelector('#todo-list').textContent.includes('Headless Task');
+  const inPendingBefore = document.querySelector('#todo-list').textContent.includes('Headless Task');
+  const todayTabBefore = [...document.querySelectorAll('#todo-list button')].find(b => b.textContent.trim() === 'Today');
+  todayTabBefore.click();
+  await window.__dl.wait(200);
 
-  // complete it
+  // Complete it from the Today view, where completed tasks stay inline.
   const toggle = document.querySelector('#todo-list button[aria-label^="Mark"]');
+  const toggleLabelBefore = toggle?.getAttribute('aria-label') ?? null;
   toggle.click();
   await window.__dl.wait(400);
-  const completedTab = [...document.querySelectorAll('#todo-list button')].find(b => b.textContent.trim() === 'Completed');
-  completedTab.click();
-  await window.__dl.wait(300);
-  const inCompleted = document.querySelector('#todo-list').textContent.includes('Headless Task');
 
-  return { inToday, overdueLabel, inPending, inCompleted };
+  const afterComplete = document.querySelector('#todo-list');
+  const toggleLabelAfter =
+    afterComplete.querySelector('button[aria-label^="Mark"]')?.getAttribute('aria-label') ?? null;
+  const titleEl = afterComplete.querySelector('li p');
+  const struckThrough = titleEl?.className.includes('line-through') ?? false;
+
+  // switch to Pending: the completed task is no longer pending
+  const pendingTab2 = [...afterComplete.querySelectorAll('button')].find(b => b.textContent.trim() === 'Pending');
+  pendingTab2.click();
+  await window.__dl.wait(200);
+  const inPending = document.querySelector('#todo-list').textContent.includes('Headless Task');
+
+  // back to Today: the completed task is still shown inline
+  const todayTab = [...document.querySelectorAll('#todo-list button')].find(b => b.textContent.trim() === 'Today');
+  todayTab.click();
+  await window.__dl.wait(200);
+  const stillShownToday = document.querySelector('#todo-list').textContent.includes('Headless Task');
+
+  return {
+    inToday,
+    overdueLabel,
+    inPendingBefore,
+    inPending,
+    hasCompletedTab,
+    toggleLabelBefore,
+    toggleLabelAfter,
+    struckThrough,
+    stillShownToday,
+  };
 })()`);
 
 // --- keyboard navigation in the calendar ---

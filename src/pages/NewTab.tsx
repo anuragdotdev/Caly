@@ -9,6 +9,7 @@ import { SettingsModal } from '../components/Settings/SettingsModal';
 import { DatePopover } from '../components/DatePopover/DatePopover';
 import { Celebration } from '../components/Celebration/Celebration';
 import { useAppData } from '../hooks/useAppData';
+import { useDailyTaskReset } from '../hooks/useDailyTaskReset';
 import { useToday } from '../hooks/useToday';
 import type { EventItem, TodoItem } from '../types';
 import { createId } from '../utils/id';
@@ -29,7 +30,16 @@ function shiftMonth(start: VisibleMonth, delta: number): VisibleMonth {
 }
 
 export function NewTab() {
-  const { data, loading, setEvents, setTasks, updateSettings, resetAll, importData } = useAppData();
+  const {
+    data,
+    loading,
+    setEvents,
+    setTasks,
+    updateSettings,
+    resetAll,
+    importData,
+    clearCompletedTasks,
+  } = useAppData();
   const today = useToday();
 
   const [visibleMonth, setVisibleMonth] = useState<VisibleMonth>(() =>
@@ -53,6 +63,9 @@ export function NewTab() {
   useEffect(() => {
     document.documentElement.dataset.theme = data.settings.theme;
   }, [data.settings.theme]);
+
+  // Completed tasks are cleared once the clock passes 03:00 local time.
+  useDailyTaskReset(clearCompletedTasks);
 
   const visibleMonths = useMemo(
     () =>
@@ -88,11 +101,6 @@ export function NewTab() {
 
   const visibleTasks = useMemo(() => {
     const pending = data.tasks.filter((task) => !task.completed);
-    if (todoFilter === 'completed') {
-      return data.tasks
-        .filter((task) => task.completed)
-        .sort((a, b) => (b.completedAt ?? '').localeCompare(a.completedAt ?? ''));
-    }
     if (todoFilter === 'pending') {
       return [...pending].sort((a, b) => {
         const aDue = a.dueDate ?? '9999-12-31';
@@ -101,8 +109,9 @@ export function NewTab() {
       });
     }
     // Today view: overdue + due today + tasks without a due date.
-    // Completed tasks stay in place (struck through) so the day's list reads
-    // as a single list of what was on the plate.
+    // Completed tasks stay in place (struck through) until the 03:00
+    // reset clears them, so the day's list reads as a single list of what
+    // was on the plate.
     return data.tasks
       .filter((task) => task.dueDate === undefined || task.dueDate <= today)
       .sort((a, b) => {

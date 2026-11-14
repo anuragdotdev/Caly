@@ -2,7 +2,7 @@ import { Check, Pencil, Plus, Trash2 } from 'lucide-react';
 import type { Priority, TodoItem } from '../../types';
 import { formatLongDate } from '../../utils/dates';
 
-export type TodoFilter = 'today' | 'pending' | 'completed';
+export type TodoFilter = 'today' | 'pending';
 
 interface TodoListProps {
   tasks: TodoItem[];
@@ -26,7 +26,6 @@ const PRIORITY_DOT: Record<Priority, string> = {
 const FILTERS: { key: TodoFilter; label: string }[] = [
   { key: 'today', label: 'Today' },
   { key: 'pending', label: 'Pending' },
-  { key: 'completed', label: 'Completed' },
 ];
 
 export function TodoList({
@@ -79,9 +78,7 @@ export function TodoList({
 
       {tasks.length === 0 ? (
         <div className="rounded-lg border border-dashed border-line px-3 py-6 text-center">
-          <p className="text-[12px] text-text-3">
-            {filter === 'completed' ? 'No completed tasks' : 'Nothing here yet'}
-          </p>
+          <p className="text-[12px] text-text-3">Nothing here yet</p>
         </div>
       ) : (
         <ul className="flex flex-col divide-y divide-line-soft">

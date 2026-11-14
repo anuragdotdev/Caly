@@ -6,6 +6,7 @@ import {
   defaultData,
   migrate,
 } from './migrate';
+import { lastResetBoundary, staleCompletions } from './tasks';
 
 /**
  * Centralised access to `chrome.storage.local`.
@@ -168,6 +169,32 @@ export async function resetAll(): Promise<AppData> {
     const data = defaultData();
     await writeRaw(data);
     return data;
+  });
+}
+
+/* ----------------------------------------------------------------- reset */
+
+/**
+ * Delete the completed tasks that belong to a previous cycle.
+ *
+ * A task is stale once it was completed before the most recent 03:00 local
+ * boundary. Unfinished tasks are never touched.
+ */
+export async function clearCompletedTasks(now: Date = new Date()): Promise<AppData> {
+  const boundary = lastResetBoundary(now);
+  return enqueue(async () => {
+    const raw = await readRaw();
+    const current = migrate(raw);
+    const stale = staleCompletions(current.tasks, boundary);
+    if (stale.length === 0) return current;
+
+    const staleIds = new Set(stale.map((task) => task.id));
+    const next: AppData = {
+      ...current,
+      tasks: current.tasks.filter((task) => !staleIds.has(task.id)),
+    };
+    await writeRaw(next);
+    return next;
   });
 }
 

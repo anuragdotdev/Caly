@@ -166,3 +166,93 @@ describe('storage service', () => {
     expect(result.events).toHaveLength(1);
   });
 });
+
+describe('clearCompletedTasks', () => {
+  beforeEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('removes completed tasks from before the boundary and keeps the rest', async () => {
+    installFakeStorage();
+    const storage = await importStorage();
+
+    const now = new Date(2026, 10, 14, 9, 0);
+    const stale = new Date(2026, 10, 13, 22, 0).toISOString();
+    const fresh = new Date(2026, 10, 14, 4, 0).toISOString();
+
+    await storage.updateData((current) => ({
+      ...current,
+      tasks: [
+        { id: 'pending', title: 'Pending', completed: false, createdAt: stale, updatedAt: stale },
+        { id: 'stale', title: 'Stale', completed: true, completedAt: stale, createdAt: stale, updatedAt: stale },
+        { id: 'fresh', title: 'Fresh', completed: true, completedAt: fresh, createdAt: fresh, updatedAt: fresh },
+      ],
+    }));
+
+    const result = await storage.clearCompletedTasks(now);
+    expect(result.tasks.map((t) => t.id).sort()).toEqual(['fresh', 'pending']);
+  });
+
+  it('leaves unfinished tasks alone', async () => {
+    installFakeStorage();
+    const storage = await importStorage();
+    await storage.updateData((current) => ({
+      ...current,
+      tasks: [
+        {
+          id: 'overdue',
+          title: 'Overdue',
+          completed: false,
+          dueDate: '2026-01-01',
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }));
+
+    const result = await storage.clearCompletedTasks(new Date(2026, 10, 14, 9, 0));
+    expect(result.tasks).toHaveLength(1);
+    expect(result.tasks[0]?.id).toBe('overdue');
+  });
+
+  it('does not write when there is nothing to clear', async () => {
+    const { area } = installFakeStorage();
+    const storage = await importStorage();
+    await storage.updateData((current) => ({
+      ...current,
+      tasks: [
+        {
+          id: 'pending',
+          title: 'Pending',
+          completed: false,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }));
+
+    const before = JSON.stringify(area.data[STORAGE_KEY]);
+    await storage.clearCompletedTasks(new Date(2026, 10, 14, 9, 0));
+    expect(JSON.stringify(area.data[STORAGE_KEY])).toBe(before);
+  });
+
+  it('treats a completed task with no timestamp as stale', async () => {
+    installFakeStorage();
+    const storage = await importStorage();
+    await storage.updateData((current) => ({
+      ...current,
+      tasks: [
+        {
+          id: 'legacy',
+          title: 'Legacy',
+          completed: true,
+          createdAt: '2026-01-01T00:00:00.000Z',
+          updatedAt: '2026-01-01T00:00:00.000Z',
+        },
+      ],
+    }));
+
+    const result = await storage.clearCompletedTasks(new Date(2026, 10, 14, 9, 0));
+    expect(result.tasks).toHaveLength(0);
+  });
+});

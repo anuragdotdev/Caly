@@ -11,6 +11,8 @@ export interface AppDataApi {
   updateSettings: (patch: Partial<Settings>) => Promise<void>;
   resetAll: () => Promise<void>;
   importData: (data: AppData) => Promise<void>;
+  /** Delete completed tasks that belong to a previous daily cycle. */
+  clearCompletedTasks: () => Promise<void>;
   reload: () => Promise<void>;
 }
 
@@ -74,6 +76,11 @@ export function useAppData(): AppDataApi {
     if (mounted.current) setData(next);
   }, []);
 
+  const clearCompletedTasks = useCallback(async () => {
+    const next = await storage.clearCompletedTasks();
+    if (mounted.current) setData(next);
+  }, []);
+
   return {
     data,
     loading,
@@ -82,6 +89,7 @@ export function useAppData(): AppDataApi {
     updateSettings,
     resetAll,
     importData,
+    clearCompletedTasks,
     reload,
   };
 }
