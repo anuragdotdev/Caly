@@ -1,4 +1,4 @@
-# DEADLINE.
+# Caly.
 
 A minimal personal planning dashboard for the Chrome new tab: a monthly calendar, an
 upcoming-events list and a persistent todo list, with a countdown in the header.
