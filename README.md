@@ -19,6 +19,10 @@ to the current month. Clicking a date opens a popover with that date's events.
 The window can straddle two years; the heading then reads `2026 – 2027` and the months
 in the other year are labelled `JAN 2027`.
 
+Each month shows only its own dates. The cells before the 1st and after the last day are
+left empty rather than filled with the neighbouring month's days, so a date never appears
+in two months.
+
 | State | Appearance |
 |---|---|
 | Today | solid white cell, black text |

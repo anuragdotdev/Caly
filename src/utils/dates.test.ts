@@ -180,41 +180,80 @@ describe('weekdayInitials', () => {
 });
 
 describe('monthMatrix', () => {
-  it('returns whole weeks only (35 or 42 cells)', () => {
+  it('returns whole weeks only', () => {
     for (const month of Array.from({ length: 12 }, (_, i) => i + 1)) {
       const cells = monthMatrix(2026, month, 'monday');
       expect(cells.length % 7).toBe(0);
-      expect([35, 42]).toContain(cells.length);
+      expect([28, 35, 42]).toContain(cells.length);
     }
   });
 
-  it('always contains every day of the target month', () => {
+  it('contains exactly the days of the target month', () => {
     for (const month of Array.from({ length: 12 }, (_, i) => i + 1)) {
       const cells = monthMatrix(2026, month, 'monday');
-      const expected = daysInMonth(2026, month);
-      const inMonth = cells.filter((d) => d.getMonth() === month - 1 && d.getFullYear() === 2026);
-      expect(inMonth).toHaveLength(expected);
-      expect(toDateString(inMonth[0]!)).toBe(`2026-${String(month).padStart(2, '0')}-01`);
+      const filled = cells.filter((d): d is Date => d !== null);
+      expect(filled).toHaveLength(daysInMonth(2026, month));
+      for (const date of filled) {
+        expect(date.getMonth()).toBe(month - 1);
+        expect(date.getFullYear()).toBe(2026);
+      }
+      expect(toDateString(filled[0]!)).toBe(`2026-${String(month).padStart(2, '0')}-01`);
+      expect(toDateString(filled[filled.length - 1]!)).toBe(
+        `2026-${String(month).padStart(2, '0')}-${daysInMonth(2026, month)}`,
+      );
     }
+  });
+
+  it('leaves the cells before the 1st and after the last day empty', () => {
+    const cells = monthMatrix(2026, 12, 'monday');
+    // December 2026 starts on a Tuesday, so Monday is empty.
+    expect(cells[0]).toBeNull();
+    expect(toDateString(cells[1]!)).toBe('2026-12-01');
+    // 1 empty cell + 31 days = 32, so 5 weeks with 3 trailing empty cells.
+    expect(cells).toHaveLength(35);
+    expect(toDateString(cells[31]!)).toBe('2026-12-31');
+    expect(cells[32]).toBeNull();
+    expect(cells[33]).toBeNull();
+    expect(cells[34]).toBeNull();
+  });
+
+  it('leaves Sunday and Monday empty when the month starts on a Tuesday', () => {
+    const cells = monthMatrix(2026, 12, 'sunday');
+    expect(cells[0]).toBeNull();
+    expect(cells[1]).toBeNull();
+    expect(toDateString(cells[2]!)).toBe('2026-12-01');
+  });
+
+  it('aligns the 1st to the correct weekday column', () => {
+    // 2026-01-01 is Thursday -> column index 3 in a Monday-first grid.
+    const mondayFirst = monthMatrix(2026, 1, 'monday');
+    expect(mondayFirst[3]).not.toBeNull();
+    expect(toDateString(mondayFirst[3]!)).toBe('2026-01-01');
+    expect(mondayFirst[0]).toBeNull();
+    expect(mondayFirst[1]).toBeNull();
+    expect(mondayFirst[2]).toBeNull();
+
+    // ...and column index 4 in a Sunday-first grid.
+    const sundayFirst = monthMatrix(2026, 1, 'sunday');
+    expect(toDateString(sundayFirst[4]!)).toBe('2026-01-01');
+    expect(sundayFirst[0]).toBeNull();
+    expect(sundayFirst[3]).toBeNull();
+  });
+
+  it('keeps the same number of weeks as before padding was removed', () => {
+    // November 2026 starts on a Sunday: 6 empty cells + 30 days = 36, so 6 weeks.
+    const cells = monthMatrix(2026, 11, 'monday');
+    expect(cells).toHaveLength(42);
+    expect(cells.filter((d) => d === null)).toHaveLength(12);
+    // February 2026 has 28 days starting on a Sunday: 6 + 28 = 34, so 5 weeks.
+    expect(monthMatrix(2026, 2, 'monday')).toHaveLength(35);
   });
 
   it('handles a leap February', () => {
     const cells = monthMatrix(2024, 2, 'monday');
-    const inMonth = cells.filter((d) => d.getMonth() === 1 && d.getFullYear() === 2024);
-    expect(inMonth).toHaveLength(29);
-    expect(toDateString(inMonth[inMonth.length - 1]!)).toBe('2024-02-29');
-  });
-
-  it('aligns the first of the month to the correct weekday column', () => {
-    // 2026-01-01 is Thursday -> column index 3 in a Monday-first grid.
-    const mondayFirst = monthMatrix(2026, 1, 'monday');
-    const firstIndex = mondayFirst.findIndex((d) => toDateString(d) === '2026-01-01');
-    expect(firstIndex % 7).toBe(3);
-
-    // 2026-01-01 is Thursday -> column index 4 in a Sunday-first grid.
-    const sundayFirst = monthMatrix(2026, 1, 'sunday');
-    const firstIndexSunday = sundayFirst.findIndex((d) => toDateString(d) === '2026-01-01');
-    expect(firstIndexSunday % 7).toBe(4);
+    const filled = cells.filter((d): d is Date => d !== null);
+    expect(filled).toHaveLength(29);
+    expect(toDateString(filled[filled.length - 1]!)).toBe('2024-02-29');
   });
 });
 

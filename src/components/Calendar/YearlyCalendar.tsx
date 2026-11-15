@@ -54,6 +54,27 @@ export function YearlyCalendar({
   }, [months, lastMonth, primaryYear]);
 
   /**
+   * Move DOM focus to a cell. The target may only exist after the visible
+   * window has slid and React has re-rendered, so the lookup is retried
+   * across a few frames.
+   */
+  const focusCell = (dateStr: string) => {
+    let attempts = 0;
+    const tryFocus = () => {
+      const target = gridRef.current?.querySelector<HTMLElement>(
+        `button[data-date="${dateStr}"]`,
+      );
+      if (target) {
+        target.focus();
+        return;
+      }
+      attempts += 1;
+      if (attempts < 10) requestAnimationFrame(tryFocus);
+    };
+    requestAnimationFrame(tryFocus);
+  };
+
+  /**
    * Move focus to a neighbouring day. When the target falls outside the
    * visible window the window slides to include it.
    */
@@ -74,11 +95,7 @@ export function YearlyCalendar({
     }
 
     onFocusDate(next);
-    requestAnimationFrame(() => {
-      gridRef.current
-        ?.querySelector<HTMLElement>(`button[data-date="${nextStr}"]`)
-        ?.focus();
-    });
+    focusCell(nextStr);
   };
 
   const stepperButton =

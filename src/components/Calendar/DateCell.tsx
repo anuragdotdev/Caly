@@ -5,7 +5,6 @@ import { toDateString } from '../../utils/dates';
 interface DateCellProps {
   date: Date;
   phase: DayPhase;
-  isCurrentMonth: boolean;
   isSelected: boolean;
   isFocusable: boolean;
   hasEvent: boolean;
@@ -16,7 +15,6 @@ interface DateCellProps {
 export const DateCell = memo(function DateCell({
   date,
   phase,
-  isCurrentMonth,
   isSelected,
   isFocusable,
   hasEvent,
@@ -48,10 +46,8 @@ export const DateCell = memo(function DateCell({
     tone = `text-text-3 ${struck}`;
   } else if (phase === 'beyond') {
     tone = 'text-text-3';
-  } else if (isCurrentMonth) {
-    tone = 'text-text';
   } else {
-    tone = 'text-text-3/45';
+    tone = 'text-text';
   }
 
   const label = date.toLocaleDateString('en-US', {

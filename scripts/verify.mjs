@@ -134,11 +134,23 @@ try {
   const grids = [...document.querySelectorAll('section[aria-label]')].filter(s =>
     /^(JAN|FEB|MAR|APR|MAY|JUN|JUL|AUG|SEP|OCT|NOV|DEC) /.test(s.getAttribute('aria-label') || '')
   );
+  const dim = (y, m) => new Date(y, m, 0).getDate();
+  const details = grids.map(g => {
+    const label = g.getAttribute('aria-label') || '';
+    const [mon, year] = label.split(' ');
+    const monthIndex = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'].indexOf(mon) + 1;
+    const expected = dim(Number(year), monthIndex);
+    const buttons = g.querySelectorAll('button[data-date]').length;
+    const empty = g.querySelectorAll('[role="gridcell"][aria-hidden="true"]').length;
+    return { label, expected, buttons, empty, ok: buttons === expected };
+  });
   return {
     monthGrids: grids.length,
     monthLabels: grids.map(g => g.getAttribute('aria-label')),
     dayCells: document.querySelectorAll('button[data-date]').length,
     yearHeading: document.querySelector('h2')?.textContent ?? null,
+    eachMonthHasOwnDates: details.every(d => d.ok),
+    details,
   };
 })()`);
 
@@ -212,8 +224,25 @@ report.dateStates = await evaluate(`(() => {
     },
     past: read(shift(-1)),
     tomorrow: read(shift(1)),
-    // A day belonging to the neighbouring month, shown dimmed.
-    adjacent: read(fmt(new Date(y, m, 1))),
+    // No month grid may contain a date from another month.
+    noForeignDates: (() => {
+      const monNames = ['JAN','FEB','MAR','APR','MAY','JUN','JUL','AUG','SEP','OCT','NOV','DEC'];
+      const grids = [...document.querySelectorAll('section[aria-label]')].filter(s =>
+        monNames.some(n => (s.getAttribute('aria-label') || '').startsWith(n + ' '))
+      );
+      for (const grid of grids) {
+        const label = grid.getAttribute('aria-label') || '';
+        const monthIndex = monNames.indexOf(label.split(' ')[0]) + 1;
+        const gridYear = Number(label.split(' ')[1]);
+        for (const btn of grid.querySelectorAll('button[data-date]')) {
+          const [by, bm] = btn.dataset.date.split('-').map(Number);
+          if (by !== gridYear || bm !== monthIndex) {
+            return { ok: false, label, offending: btn.dataset.date };
+          }
+        }
+      }
+      return { ok: true };
+    })(),
   };
 })()`);
 

@@ -155,25 +155,28 @@ export function weekdayInitials(weekStartsOn: WeekStart): string[] {
 }
 
 /**
- * The days of the given month laid out in whole weeks, padded with the
- * neighbouring months' days so every date sits in its correct weekday
- * column.
+ * The cells of the given month's grid, laid out in whole weeks.
  *
- * Only the weeks the month actually needs are returned (5 or 6), which keeps
- * the yearly calendar compact.
+ * Only the month's own dates are returned — cells before the 1st and after
+ * the last day are `null` placeholders, so a date never appears in two
+ * months. The number of weeks is exactly the number the month needs
+ * (5 or 6), which keeps the calendar compact.
  */
-export function monthMatrix(year: number, month: number, weekStartsOn: WeekStart): Date[] {
+export function monthMatrix(
+  year: number,
+  month: number,
+  weekStartsOn: WeekStart,
+): (Date | null)[] {
   const first = new Date(year, month - 1, 1);
-  const last = new Date(year, month, 0);
-  const gridStart = startOfWeek(first, weekStartsOn);
-  const gridEnd = startOfWeek(last, weekStartsOn);
+  const days = daysInMonth(year, month);
 
-  const totalDays = diffDays(gridEnd, gridStart) + 7;
-  const weekCount = totalDays / 7;
+  // How many empty cells precede the 1st.
+  const offset = diffDays(first, startOfWeek(first, weekStartsOn));
+  const weekCount = Math.ceil((offset + days) / 7);
 
-  const cells: Date[] = [];
-  for (let i = 0; i < weekCount * 7; i += 1) {
-    cells.push(addDays(gridStart, i));
+  const cells: (Date | null)[] = new Array<Date | null>(weekCount * 7).fill(null);
+  for (let i = 0; i < days; i += 1) {
+    cells[offset + i] = addDays(first, i);
   }
   return cells;
 }

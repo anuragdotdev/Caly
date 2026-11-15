@@ -84,9 +84,21 @@ export const MonthGrid = memo(function MonthGrid({
 
         {chunk(cells, 7).map((week, weekIndex) => (
           <div role="row" key={weekIndex} className="grid grid-cols-7">
-            {week.map((date) => {
+            {week.map((date, cellIndex) => {
+              if (!date) {
+                // An empty cell: it reserves the same footprint as a date so
+                // the rows and columns stay aligned.
+                return (
+                  <div
+                    key={`empty-${weekIndex}-${cellIndex}`}
+                    role="gridcell"
+                    aria-hidden="true"
+                    className="flex h-6 w-6 justify-center"
+                  />
+                );
+              }
+
               const dateStr = toDateString(date);
-              const isCurrentMonth = date.getMonth() === month - 1;
               const phase = dayPhase(dateStr, today, deadline);
               const isSelected = dateStr === selectedDate;
               return (
@@ -99,7 +111,6 @@ export const MonthGrid = memo(function MonthGrid({
                   <DateCell
                     date={date}
                     phase={phase}
-                    isCurrentMonth={isCurrentMonth}
                     isSelected={isSelected}
                     isFocusable={dateStr === focusDate}
                     hasEvent={eventDates.has(dateStr)}
