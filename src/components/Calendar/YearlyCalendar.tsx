@@ -22,8 +22,6 @@ interface YearlyCalendarProps {
   eventDates: Set<string>;
   /** Shift the window by a number of months (positive = forwards). */
   onShiftMonths: (delta: number) => void;
-  /** Jump the window by a number of years. */
-  onShiftYears: (delta: number) => void;
   onSelectDate: (date: Date, anchor: HTMLElement) => void;
   /** Keyboard navigation moves the selection without opening the popover. */
   onFocusDate: (date: Date) => void;
@@ -39,7 +37,6 @@ export function YearlyCalendar({
   selectedDate,
   eventDates,
   onShiftMonths,
-  onShiftYears,
   onSelectDate,
   onFocusDate,
   onToday,
@@ -111,27 +108,6 @@ export function YearlyCalendar({
               className={stepperButton}
             >
               <ChevronRight size={15} strokeWidth={1.5} aria-hidden="true" />
-            </button>
-          </div>
-
-          <div className="flex items-center gap-0.5 text-text-3">
-            <button
-              type="button"
-              onClick={() => onShiftYears(-1)}
-              aria-label="Previous year"
-              className={stepperButton}
-            >
-              <ChevronLeft size={11} strokeWidth={1.5} aria-hidden="true" />
-              <ChevronLeft size={11} strokeWidth={1.5} aria-hidden="true" className="-ml-1.5" />
-            </button>
-            <button
-              type="button"
-              onClick={() => onShiftYears(1)}
-              aria-label="Next year"
-              className={stepperButton}
-            >
-              <ChevronRight size={11} strokeWidth={1.5} aria-hidden="true" />
-              <ChevronRight size={11} strokeWidth={1.5} aria-hidden="true" className="-ml-1.5" />
             </button>
           </div>
 

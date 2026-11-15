@@ -13,9 +13,8 @@ and a settings button. The countdown target defaults to December 31 of the curre
 and rolls forward to the next year end once it passes.
 
 **Calendar** — three months at a time in a 3-column grid. Correct month lengths, leap
-years and weekday offsets. `‹ ›` slide the window one month at a time, `« »` jump a
-year, and `Today` returns to the current month. Clicking a date opens a popover with
-that date's events.
+years and weekday offsets. `‹ ›` slide the window one month at a time, and `Today` returns
+to the current month. Clicking a date opens a popover with that date's events.
 
 The window can straddle two years; the heading then reads `2026 – 2027` and the months
 in the other year are labelled `JAN 2027`.

@@ -144,10 +144,6 @@ export function NewTab() {
     setVisibleMonth((current) => shiftMonth(current, delta));
   }, []);
 
-  const handleShiftYears = useCallback((delta: number) => {
-    setVisibleMonth((current) => shiftMonth(current, delta * 12));
-  }, []);
-
   const openNewEvent = useCallback(
     (date?: string) => {
       setEditingEvent(null);
@@ -287,7 +283,6 @@ export function NewTab() {
                 selectedDate={selectedDate}
                 eventDates={eventDates}
                 onShiftMonths={handleShiftMonths}
-                onShiftYears={handleShiftYears}
                 onSelectDate={handleSelectDate}
                 onFocusDate={handleFocusDate}
                 onToday={handleToday}

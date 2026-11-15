@@ -159,10 +159,11 @@ report.navigation = await evaluate(`(async () => {
   await click('Previous month');
   await click('Previous month');
   const afterPrevMonth = monthsNow();
-  await click('Next year');
-  const afterNextYear = monthsNow();
-  await click('Previous year');
-  const afterPrevYear = monthsNow();
+
+  // The year stepper was removed; only month navigation remains.
+  const hasYearButtons =
+    !!document.querySelector('button[aria-label="Previous year"]') ||
+    !!document.querySelector('button[aria-label="Next year"]');
 
   // Today button
   const todayBtn = [...document.querySelectorAll('button')].find(b => b.textContent.trim() === 'Today');
@@ -175,8 +176,7 @@ report.navigation = await evaluate(`(async () => {
     start,
     afterNextMonth,
     afterPrevMonth,
-    afterNextYear,
-    afterPrevYear,
+    hasYearButtons,
     afterToday,
     todaySelected: todayCell?.dataset?.date ?? null,
   };
