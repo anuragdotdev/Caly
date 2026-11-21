@@ -76,6 +76,11 @@ export function TaskModal({ open, task, today, onClose, onSave }: TaskModalProps
           className={inputClass}
           value={title}
           onChange={(e) => setTitle(e.target.value)}
+          onKeyDown={(e) => {
+            if (e.key !== 'Enter' || e.nativeEvent.isComposing || e.repeat) return;
+            e.preventDefault();
+            submit();
+          }}
           placeholder="Finish ML assignment"
           autoComplete="off"
         />

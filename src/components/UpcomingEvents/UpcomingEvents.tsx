@@ -1,4 +1,4 @@
-import { Plus } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import type { EventItem } from '../../types';
 import { eventTypeLabel } from '../../types';
 import { monthAbbreviation } from '../../utils/dates';
@@ -7,9 +7,10 @@ interface UpcomingEventsProps {
   events: EventItem[];
   onAdd: () => void;
   onSelect: (event: EventItem) => void;
+  onDelete: (event: EventItem) => void;
 }
 
-export function UpcomingEvents({ events, onAdd, onSelect }: UpcomingEventsProps) {
+export function UpcomingEvents({ events, onAdd, onSelect, onDelete }: UpcomingEventsProps) {
   return (
     <section id="upcoming-events" aria-labelledby="upcoming-heading" className="min-w-0">
       <div className="mb-2 flex items-center justify-between">
@@ -46,11 +47,11 @@ export function UpcomingEvents({ events, onAdd, onSelect }: UpcomingEventsProps)
             const month = Number(event.date.slice(5, 7));
             const day = Number(event.date.slice(8, 10));
             return (
-              <li key={event.id}>
+              <li key={event.id} className="group flex items-center">
                 <button
                   type="button"
                   onClick={() => onSelect(event)}
-                  className="flex w-full items-center gap-3 py-3 text-left transition-colors hover:bg-surface-2/60"
+                  className="flex min-w-0 flex-1 items-center gap-3 py-3 text-left transition-colors hover:bg-surface-2/60"
                 >
                   <span className="flex w-[34px] shrink-0 flex-col items-center">
                     <span className="text-[20px] font-semibold leading-none text-text">
@@ -66,6 +67,14 @@ export function UpcomingEvents({ events, onAdd, onSelect }: UpcomingEventsProps)
                       {eventTypeLabel(event.type)}
                     </span>
                   </span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onDelete(event)}
+                  aria-label={`Delete ${event.title}`}
+                  className="flex h-6 w-6 shrink-0 items-center justify-center rounded-md text-text-3 opacity-0 transition-colors hover:bg-surface-2 hover:text-danger focus:opacity-100 group-hover:opacity-100"
+                >
+                  <Trash2 size={12} strokeWidth={1.5} aria-hidden="true" />
                 </button>
               </li>
             );

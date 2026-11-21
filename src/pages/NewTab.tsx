@@ -8,15 +8,22 @@ import { TaskModal, type TaskDraft } from '../components/Todo/TaskModal';
 import { SettingsModal } from '../components/Settings/SettingsModal';
 import { DatePopover } from '../components/DatePopover/DatePopover';
 import { Celebration } from '../components/Celebration/Celebration';
+import { DeleteConfirmation } from '../components/ui/DeleteConfirmation';
 import { useAppData } from '../hooks/useAppData';
 import { useDailyTaskReset } from '../hooks/useDailyTaskReset';
 import { useToday } from '../hooks/useToday';
+import { getUpcomingEvents } from '../services/calendar';
+import { reorderTasks } from '../services/tasks';
 import type { EventItem, TodoItem } from '../types';
 import { createId } from '../utils/id';
 import { toDateString } from '../utils/dates';
 
 /** How many months are visible at once. */
 const VISIBLE_MONTHS = 3;
+
+type PendingDelete =
+  | { kind: 'event'; item: EventItem }
+  | { kind: 'task'; item: TodoItem };
 
 /** The month the window opens on: the one containing today. */
 function initialVisibleMonth(today: string): VisibleMonth {
@@ -56,6 +63,7 @@ export function NewTab() {
 
   const [taskModalOpen, setTaskModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<TodoItem | null>(null);
+  const [pendingDelete, setPendingDelete] = useState<PendingDelete | null>(null);
 
   const [todoFilter, setTodoFilter] = useState<TodoFilter>('today');
 
@@ -91,35 +99,18 @@ export function NewTab() {
     return map;
   }, [data.events]);
 
-  const upcomingEvents = useMemo(
-    () =>
-      data.events
-        .filter((event) => event.date >= today)
-        .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt)),
-    [data.events, today],
-  );
+  const upcomingEvents = useMemo(() => getUpcomingEvents(data.events, today), [data.events, today]);
 
   const visibleTasks = useMemo(() => {
-    const pending = data.tasks.filter((task) => !task.completed);
     if (todoFilter === 'pending') {
-      return [...pending].sort((a, b) => {
-        const aDue = a.dueDate ?? '9999-12-31';
-        const bDue = b.dueDate ?? '9999-12-31';
-        return aDue.localeCompare(bDue) || a.createdAt.localeCompare(b.createdAt);
-      });
+      return data.tasks.filter((task) => !task.completed);
     }
     // Today view: overdue + due today + tasks without a due date.
-    // Completed tasks stay in place (struck through) until the 03:00
-    // reset clears them, so the day's list reads as a single list of what
-    // was on the plate.
+    // Preserve manual order within each group, with completed tasks last
+    // until the 03:00 reset clears them.
     return data.tasks
       .filter((task) => task.dueDate === undefined || task.dueDate <= today)
-      .sort((a, b) => {
-        if (a.completed !== b.completed) return a.completed ? 1 : -1;
-        const aDue = a.dueDate ?? '9999-12-31';
-        const bDue = b.dueDate ?? '9999-12-31';
-        return aDue.localeCompare(bDue) || a.createdAt.localeCompare(b.createdAt);
-      });
+      .sort((a, b) => Number(a.completed) - Number(b.completed));
   }, [data.tasks, todoFilter, today]);
 
   const handleSelectDate = useCallback((date: Date, anchor: HTMLElement) => {
@@ -190,14 +181,6 @@ export function NewTab() {
     [data.events, setEvents],
   );
 
-  const handleDeleteEvent = useCallback(
-    async (event: EventItem) => {
-      if (!window.confirm(`Delete "${event.title}"?`)) return;
-      await setEvents((events) => events.filter((e) => e.id !== event.id));
-    },
-    [setEvents],
-  );
-
   const openNewTask = useCallback(() => {
     setEditingTask(null);
     setTaskModalOpen(true);
@@ -229,7 +212,7 @@ export function NewTab() {
           next[index] = task;
           return next;
         }
-        return [...tasks, task];
+        return [task, ...tasks];
       });
       setTaskModalOpen(false);
       setEditingTask(null);
@@ -251,13 +234,23 @@ export function NewTab() {
     [setTasks],
   );
 
-  const handleDeleteTask = useCallback(
-    async (task: TodoItem) => {
-      if (!window.confirm(`Delete "${task.title}"?`)) return;
-      await setTasks((tasks) => tasks.filter((t) => t.id !== task.id));
+  const handleReorderTask = useCallback(
+    (sourceId: string, targetId: string, placement: 'before' | 'after') => {
+      void setTasks((tasks) => reorderTasks(tasks, sourceId, targetId, placement));
     },
     [setTasks],
   );
+
+  const confirmDelete = useCallback(async () => {
+    if (!pendingDelete) return;
+    setPendingDelete(null);
+    if (pendingDelete.kind === 'event') {
+      setPopoverOpen(false);
+      await setEvents((events) => events.filter((event) => event.id !== pendingDelete.item.id));
+    } else {
+      await setTasks((tasks) => tasks.filter((task) => task.id !== pendingDelete.item.id));
+    }
+  }, [pendingDelete, setEvents, setTasks]);
 
   const handleReset = useCallback(async () => {
     await resetAll();
@@ -295,10 +288,12 @@ export function NewTab() {
                 date={selectedDate}
                 events={eventsByDate.get(selectedDate) ?? []}
                 anchor={popoverAnchor}
-                onClose={() => setPopoverOpen(false)}
+                onClose={() => {
+                  if (!pendingDelete) setPopoverOpen(false);
+                }}
                 onAdd={(date) => openNewEvent(date)}
                 onEdit={openEditEvent}
-                onDelete={(event) => void handleDeleteEvent(event)}
+                onDelete={(event) => setPendingDelete({ kind: 'event', item: event })}
               />
             ) : null}
           </div>
@@ -308,6 +303,7 @@ export function NewTab() {
               events={upcomingEvents}
               onAdd={() => openNewEvent()}
               onSelect={openEditEvent}
+              onDelete={(event) => setPendingDelete({ kind: 'event', item: event })}
             />
 
             <TodoList
@@ -319,7 +315,8 @@ export function NewTab() {
               onAdd={openNewTask}
               onToggle={(task) => void handleToggleTask(task)}
               onEdit={openEditTask}
-              onDelete={(task) => void handleDeleteTask(task)}
+              onDelete={(task) => setPendingDelete({ kind: 'task', item: task })}
+              onReorder={handleReorderTask}
             />
           </div>
         </div>
@@ -357,6 +354,15 @@ export function NewTab() {
         onImport={(incoming) => void importData(incoming)}
         onReset={() => void handleReset()}
       />
+
+      {pendingDelete ? (
+        <DeleteConfirmation
+          kind={pendingDelete.kind}
+          itemTitle={pendingDelete.item.title}
+          onCancel={() => setPendingDelete(null)}
+          onConfirm={() => void confirmDelete()}
+        />
+      ) : null}
 
       <Celebration settings={data.settings} today={today} />
     </div>

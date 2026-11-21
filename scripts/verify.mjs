@@ -475,6 +475,32 @@ report.todos = await evaluate(`(async () => {
   };
 })()`);
 
+// --- Enter in the task-name field submits through the same validation as Add Task ---
+report.taskEnter = await evaluate(`(async () => {
+  const todo = document.querySelector('#todo-list');
+  window.__dl.byText(todo, 'Add task').click();
+  await window.__dl.wait(200);
+  const modal = document.querySelector('[role="dialog"][aria-label="New Task"]');
+  const title = modal.querySelector('#task-title');
+  const pressEnter = () => title.dispatchEvent(new KeyboardEvent('keydown', {
+    key: 'Enter', bubbles: true, cancelable: true,
+  }));
+
+  pressEnter();
+  await window.__dl.wait(100);
+  const emptyNameRejected = modal.textContent.includes('Task name is required') && modal.isConnected;
+
+  window.__dl.setInput(title, 'Task added with Enter');
+  await window.__dl.wait(100);
+  pressEnter();
+  await window.__dl.wait(500);
+  return {
+    emptyNameRejected,
+    added: document.querySelector('#todo-list').textContent.includes('Task added with Enter'),
+    modalClosed: !document.querySelector('[role="dialog"][aria-label="New Task"]'),
+  };
+})()`);
+
 // --- keyboard navigation in the calendar ---
 report.keyboard = await evaluate(`(async () => {
   const todayCell = document.querySelector('button[aria-current="date"]');
@@ -581,6 +607,65 @@ const afterReload = await evaluate(`(() => {
 })()`);
 
 report.persistence = { beforeReload, afterReload };
+
+// --- deletion uses an in-app dialog, not Chrome's native confirmation ---
+report.deleteConfirmation = await evaluate(`(async () => {
+  window.confirm = () => { throw new Error('Native confirm should not be used'); };
+  const wait = window.__dl.wait;
+  const byText = window.__dl.byText;
+  const todo = document.querySelector('#todo-list');
+  byText(todo, 'Add task').click();
+  await wait(200);
+  const taskModal = document.querySelector('[role="dialog"][aria-label="New Task"]');
+  window.__dl.setInput(taskModal.querySelector('#task-title'), 'Delete me task');
+  await wait(100);
+  byText(taskModal, 'Add Task').click();
+  await wait(300);
+  document.querySelector('button[aria-label="Delete Delete me task"]').click();
+  await wait(150);
+  const taskDialog = document.querySelector('[role="dialog"][aria-label="Delete task?"]');
+  const taskDialogNamesItem = taskDialog?.textContent.includes('Delete me task') ?? false;
+  byText(taskDialog, 'Cancel').click();
+  await wait(150);
+  const taskKeptAfterCancel = document.querySelector('#todo-list').textContent.includes('Delete me task');
+  document.querySelector('button[aria-label="Delete Delete me task"]').click();
+  await wait(150);
+  byText(document.querySelector('[role="dialog"][aria-label="Delete task?"]'), 'Delete').click();
+  await wait(350);
+  const taskRemoved = !document.querySelector('#todo-list').textContent.includes('Delete me task');
+
+  document.querySelector('button[data-date="2026-12-04"]').click();
+  await wait(200);
+  const popover = document.querySelector('[role="dialog"][aria-label^="Events on"]');
+  byText(popover, 'Add event').click();
+  await wait(200);
+  const eventModal = document.querySelector('[role="dialog"][aria-label="New Event"]');
+  window.__dl.setInput(eventModal.querySelector('#event-title'), 'Delete me event');
+  window.__dl.setInput(eventModal.querySelector('#event-date'), '2026-12-04');
+  await wait(100);
+  byText(eventModal, 'Add Event').click();
+  await wait(350);
+  document.querySelector('button[data-date="2026-12-04"]').click();
+  await wait(200);
+  document.querySelector('button[aria-label="Delete Delete me event"]').click();
+  await wait(150);
+  const eventDialog = document.querySelector('[role="dialog"][aria-label="Delete event?"]');
+  const eventDialogNamesItem = eventDialog?.textContent.includes('Delete me event') ?? false;
+  document.dispatchEvent(new KeyboardEvent('keydown', { key: 'Escape', bubbles: true }));
+  await wait(150);
+  const eventKeptAfterEscape = document.querySelector('#upcoming-events').textContent.includes('Delete me event');
+  const popoverKeptAfterEscape = !!document.querySelector('button[aria-label="Delete Delete me event"]');
+  document.querySelector('button[aria-label="Delete Delete me event"]').click();
+  await wait(150);
+  byText(document.querySelector('[role="dialog"][aria-label="Delete event?"]'), 'Delete').click();
+  await wait(350);
+  return {
+    taskDialogNamesItem, taskKeptAfterCancel, taskRemoved,
+    eventDialogNamesItem, eventKeptAfterEscape, popoverKeptAfterEscape,
+    eventRemoved: !document.querySelector('#upcoming-events').textContent.includes('Delete me event'),
+    noDialog: !document.querySelector('[role="dialog"][aria-label^="Delete "]'),
+  };
+})()`);
 } catch (error) {
   report.error = String(error?.message ?? error);
 }

@@ -1,4 +1,4 @@
-# Caly.
+# Caly
 
 A minimal personal planning dashboard for the Chrome new tab: a monthly calendar, an
 upcoming-events list and a persistent todo list, with a countdown in the header.
@@ -35,8 +35,9 @@ Days between today and the countdown target stay white; everything after the tar
 recedes to plain grey. Past dates that contain an event keep their amber marker while
 staying struck through, and so do events that fall after the deadline.
 
-**Upcoming events** — chronological list of today-and-later events with the day number,
-month abbreviation, title and type. Events can also be created, edited and deleted from
+**Upcoming events** — the next five today-and-later events with the day number, month
+abbreviation, title and type. Delete an event directly from this list using its trash
+button and the confirmation dialog. Events can also be created, edited and deleted from
 the calendar popover. Past events stay reachable through the calendar.
 
 Event types: Assignment, Examination, Presentation, Project, Personal, Other.
@@ -44,9 +45,13 @@ Event types: Assignment, Examination, Presentation, Project, Personal, Other.
 **Todo list** — add, edit, complete, undo and delete tasks, each with an optional priority
 and due date. Two views:
 
-- **Today** — overdue, due today and undated tasks (the default). Completed tasks stay
-  inline, struck through, until the daily reset.
+- **Today** — overdue, due today and undated tasks (the default). Completed tasks move
+  to the bottom, struck through, until the daily reset.
 - **Pending** — every incomplete task.
+
+Drag a task by its grip (or focus the grip and use Up/Down) to set its order. The order
+persists across tabs and restarts, takes priority over due dates, and new tasks start at
+the top of their view. Completed tasks always appear after unfinished tasks.
 
 Unfinished tasks never disappear on their own: an overdue task stays pending until you
 complete or delete it, and everything persists across browser restarts.

@@ -1,5 +1,24 @@
 import type { TodoItem } from '../types';
 
+/** Move one task relative to another without disturbing the other tasks. */
+export function reorderTasks(
+  tasks: TodoItem[],
+  sourceId: string,
+  targetId: string,
+  placement: 'before' | 'after',
+): TodoItem[] {
+  const source = tasks.find((task) => task.id === sourceId);
+  const target = tasks.find((task) => task.id === targetId);
+  if (!source || !target || sourceId === targetId || source.completed !== target.completed) {
+    return tasks;
+  }
+
+  const next = tasks.filter((task) => task.id !== sourceId);
+  const targetIndex = next.findIndex((task) => task.id === targetId);
+  next.splice(targetIndex + (placement === 'after' ? 1 : 0), 0, source);
+  return next;
+}
+
 /**
  * The hour at which a new "day" begins for the todo list.
  *

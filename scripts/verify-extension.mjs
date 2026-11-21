@@ -212,6 +212,94 @@ report.afterReload = await evaluate(`(async () => {
   };
 })()`);
 
+// New tasks start first, drag and keyboard moves persist, and completed tasks end last.
+for (const title of ['First added', 'Second added']) {
+  await evaluate(`(async () => {
+    window.__dl.byText(document.querySelector('#todo-list'), 'Add task').click();
+    await window.__dl.wait(200);
+    const modal = document.querySelector('[role="dialog"][aria-label="New Task"]');
+    window.__dl.setInput(modal.querySelector('#task-title'), ${JSON.stringify(title)});
+    await window.__dl.wait(100);
+    window.__dl.byText(modal, 'Add Task').click();
+    await window.__dl.wait(350);
+  })()`);
+}
+
+const taskOrder = () => evaluate(`(() => [...document.querySelectorAll('#todo-list li p')]
+  .map(p => p.textContent.trim()))()`);
+report.reorder = { afterAdding: await taskOrder() };
+report.reorder.cursors = await evaluate(`(() => ({
+  grip: getComputedStyle(document.querySelector('button[aria-label="Reorder Second added"]')).cursor,
+  addTask: getComputedStyle(window.__dl.byText(document.querySelector('#todo-list'), 'Add task')).cursor,
+}))()`);
+
+const dragPoints = await evaluate(`(() => {
+  const handle = document.querySelector('button[aria-label="Reorder Second added"]');
+  handle.scrollIntoView({ block: 'center' });
+  const source = handle.getBoundingClientRect();
+  const target = document.querySelector('button[aria-label="Reorder First added"]')
+    .closest('li').getBoundingClientRect();
+  return {
+    from: { x: source.left + source.width / 2, y: source.top + source.height / 2 },
+    to: { x: target.left + target.width / 2, y: target.bottom - 5 },
+  };
+})()`);
+await send('Input.dispatchMouseEvent', {
+  type: 'mouseMoved', ...dragPoints.from,
+}, sessionId);
+await send('Input.dispatchMouseEvent', {
+  type: 'mousePressed', ...dragPoints.from, button: 'left', buttons: 1, clickCount: 1,
+}, sessionId);
+report.reorder.activeCursor = await evaluate(`getComputedStyle(
+  document.querySelector('button[aria-label="Reorder Second added"]')
+).cursor`);
+for (let step = 1; step <= 8; step += 1) {
+  await send('Input.dispatchMouseEvent', {
+    type: 'mouseMoved', button: 'left', buttons: 1,
+    x: dragPoints.from.x + (dragPoints.to.x - dragPoints.from.x) * step / 8,
+    y: dragPoints.from.y + (dragPoints.to.y - dragPoints.from.y) * step / 8,
+  }, sessionId);
+  await sleep(35);
+}
+await send('Input.dispatchMouseEvent', {
+  type: 'mouseReleased', ...dragPoints.to, button: 'left', buttons: 0, clickCount: 1,
+}, sessionId);
+await sleep(450);
+report.reorder.afterDrag = await taskOrder();
+
+await evaluate(`document.querySelector('button[aria-label="Reorder Persisted Task"]').focus()`);
+await send('Input.dispatchKeyEvent', {
+  type: 'rawKeyDown', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38,
+}, sessionId);
+await send('Input.dispatchKeyEvent', {
+  type: 'keyUp', key: 'ArrowUp', code: 'ArrowUp', windowsVirtualKeyCode: 38,
+}, sessionId);
+await sleep(300);
+report.reorder.afterKeyboard = await taskOrder();
+
+await send('Page.reload', {}, sessionId);
+await sleep(2200);
+await evaluate(HELPERS);
+report.reorder.afterRefresh = await taskOrder();
+await evaluate(`([...document.querySelectorAll('#todo-list button')]
+  .find(b => b.getAttribute('aria-label') === 'Mark "First added" as done')).click()`);
+await sleep(350);
+report.reorder.afterCompletion = await taskOrder();
+report.reorder.stored = await evaluate(`(async () =>
+  (await chrome.storage.local.get('deadline:data'))['deadline:data'].tasks.map(t => t.title)
+)()`);
+report.reorder.ok =
+  report.reorder.cursors.grip === 'grab' &&
+  report.reorder.cursors.addTask === 'pointer' &&
+  report.reorder.activeCursor === 'grabbing' &&
+  report.reorder.afterAdding.join() === 'Second added,First added,Persisted Task' &&
+  report.reorder.afterDrag.join() === 'First added,Second added,Persisted Task' &&
+  report.reorder.afterKeyboard.join() === 'First added,Persisted Task,Second added' &&
+  report.reorder.afterRefresh.join() === report.reorder.afterKeyboard.join() &&
+  report.reorder.afterCompletion.join() === 'Persisted Task,Second added,First added' &&
+  report.reorder.stored.join() === report.reorder.afterRefresh.join();
+if (!report.reorder.ok) throw new Error(`Task reordering failed: ${JSON.stringify(report.reorder)}`);
+
 // Export / import round trip.
 report.exportImport = await evaluate(`(async () => {
   const stored = await chrome.storage.local.get('deadline:data');
@@ -285,6 +373,77 @@ report.reset = await evaluate(`(async () => {
   const d = stored['deadline:data'];
   return { events: d?.events?.length, tasks: d?.tasks?.length, label: d?.settings?.countdownLabel };
 })()`);
+
+// Delete directly from Upcoming; cancelling keeps the event and the sixth fills a vacancy.
+await evaluate(`(async () => {
+  const stored = await chrome.storage.local.get('deadline:data');
+  const data = stored['deadline:data'];
+  const pad = (n) => String(n).padStart(2, '0');
+  data.events = Array.from({ length: 6 }, (_, i) => {
+    const day = new Date();
+    day.setDate(day.getDate() + i + 1);
+    const date = day.getFullYear() + '-' + pad(day.getMonth() + 1) + '-' + pad(day.getDate());
+    return {
+      id: 'upcoming-' + i, title: 'Upcoming ' + (i + 1), date, type: 'other',
+      createdAt: new Date().toISOString(), updatedAt: new Date().toISOString(),
+    };
+  });
+  await chrome.storage.local.set({ 'deadline:data': data });
+})()`);
+await send('Page.reload', {}, sessionId);
+await sleep(2200);
+await evaluate(HELPERS);
+report.upcomingDelete = await evaluate(`(async () => {
+  window.confirm = () => { throw new Error('Native confirm should not be used'); };
+  const wait = window.__dl.wait;
+  const upcoming = document.querySelector('#upcoming-events');
+  const firstDate = (await chrome.storage.local.get('deadline:data'))['deadline:data'].events[0].date;
+  const markerBefore = document.querySelector('button[data-date="' + firstDate + '"]')?.classList.contains('bg-amber/15');
+  const titles = () => [...upcoming.querySelectorAll('li button:not([aria-label^="Delete "])')]
+    .map(b => b.textContent.trim());
+  const initialCount = upcoming.querySelectorAll('li').length;
+  const sixthInitiallyHidden = !upcoming.textContent.includes('Upcoming 6');
+
+  upcoming.querySelector('li button:not([aria-label^="Delete "])').click();
+  await wait(150);
+  const editStillOpens = !!document.querySelector('[role="dialog"][aria-label="Edit Event"]');
+  window.__dl.byText(document.querySelector('[role="dialog"][aria-label="Edit Event"]'), 'Cancel').click();
+  await wait(150);
+
+  upcoming.querySelector('button[aria-label="Delete Upcoming 1"]').click();
+  await wait(150);
+  const dialog = document.querySelector('[role="dialog"][aria-label="Delete event?"]');
+  const dialogNamesEvent = dialog?.textContent.includes('Upcoming 1') ?? false;
+  window.__dl.byText(dialog, 'Cancel').click();
+  await wait(150);
+  const keptAfterCancel = upcoming.textContent.includes('Upcoming 1');
+
+  upcoming.querySelector('button[aria-label="Delete Upcoming 1"]').click();
+  await wait(150);
+  window.__dl.byText(document.querySelector('[role="dialog"][aria-label="Delete event?"]'), 'Delete').click();
+  await wait(450);
+  const stored = (await chrome.storage.local.get('deadline:data'))['deadline:data'].events;
+  return {
+    initialCount, sixthInitiallyHidden, editStillOpens, dialogNamesEvent, keptAfterCancel,
+    removed: !upcoming.textContent.includes('Upcoming 1') && !stored.some(e => e.title === 'Upcoming 1'),
+    sixthRevealed: upcoming.textContent.includes('Upcoming 6'),
+    stillFive: upcoming.querySelectorAll('li').length === 5,
+    markerBefore,
+    calendarMarkerGone: !document.querySelector('button[data-date="' + firstDate + '"]')?.classList.contains('bg-amber/15'),
+  };
+})()`);
+if (!(
+  report.upcomingDelete.initialCount === 5 &&
+  report.upcomingDelete.sixthInitiallyHidden &&
+  report.upcomingDelete.editStillOpens &&
+  report.upcomingDelete.dialogNamesEvent &&
+  report.upcomingDelete.keptAfterCancel &&
+  report.upcomingDelete.removed &&
+  report.upcomingDelete.sixthRevealed &&
+  report.upcomingDelete.stillFive &&
+  report.upcomingDelete.markerBefore &&
+  report.upcomingDelete.calendarMarkerGone
+)) throw new Error(`Upcoming delete failed: ${JSON.stringify(report.upcomingDelete)}`);
 
 report.consoleErrors = consoleErrors;
 

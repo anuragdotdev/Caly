@@ -1,4 +1,12 @@
-import type { DateString } from '../types';
+import type { DateString, EventItem } from '../types';
+
+/** The five nearest events from today onward, ordered by date then creation time. */
+export function getUpcomingEvents(events: EventItem[], today: DateString): EventItem[] {
+  return events
+    .filter((event) => event.date >= today)
+    .sort((a, b) => a.date.localeCompare(b.date) || a.createdAt.localeCompare(b.createdAt))
+    .slice(0, 5);
+}
 
 /**
  * The four visual phases a calendar day can be in.

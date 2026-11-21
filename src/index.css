@@ -66,18 +66,15 @@ body {
   text-rendering: optimizeLegibility;
 }
 
-/*
-  Tailwind's preflight already resets buttons and form controls inside
-  `@layer base`. These rules are deliberately unlayered, so they must not set
-  `color` or `background` — unlayered declarations outrank Tailwind's
-  `@layer utilities` and would defeat utilities like `text-text-3` and
-  `bg-accent`.
-*/
-button {
-  font: inherit;
-  cursor: pointer;
+/* Keep the default button cursor below Tailwind utilities such as cursor-grab. */
+@layer base {
+  button {
+    font: inherit;
+    cursor: pointer;
+  }
 }
 
+/* Form-control font inheritance does not override any utility styles. */
 input,
 select,
 textarea {

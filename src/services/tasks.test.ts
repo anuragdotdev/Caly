@@ -5,6 +5,7 @@ import {
   isStaleCompletion,
   lastResetBoundary,
   nextResetBoundary,
+  reorderTasks,
   staleCompletions,
 } from './tasks';
 
@@ -18,6 +19,31 @@ function task(overrides: Partial<TodoItem> = {}): TodoItem {
     ...overrides,
   };
 }
+
+describe('reorderTasks', () => {
+  const tasks = [
+    task({ id: 'a' }),
+    task({ id: 'hidden', dueDate: '2027-01-01' }),
+    task({ id: 'b' }),
+    task({ id: 'done', completed: true }),
+    task({ id: 'c' }),
+  ];
+
+  it('moves a task before or after another while preserving hidden tasks', () => {
+    expect(reorderTasks(tasks, 'c', 'a', 'before').map((item) => item.id))
+      .toEqual(['c', 'a', 'hidden', 'b', 'done']);
+    expect(reorderTasks(tasks, 'a', 'b', 'after').map((item) => item.id))
+      .toEqual(['hidden', 'b', 'a', 'done', 'c']);
+    expect(tasks.map((item) => item.id)).toEqual(['a', 'hidden', 'b', 'done', 'c']);
+  });
+
+  it('does not move tasks between unfinished and completed groups', () => {
+    expect(reorderTasks(tasks, 'done', 'a', 'before')).toBe(tasks);
+    expect(reorderTasks(tasks, 'a', 'done', 'after')).toBe(tasks);
+    expect(reorderTasks(tasks, 'a', 'a', 'after')).toBe(tasks);
+    expect(reorderTasks(tasks, 'missing', 'a', 'before')).toBe(tasks);
+  });
+});
 
 describe('lastResetBoundary', () => {
   it('is today at 03:00 once the hour has passed', () => {
